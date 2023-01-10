@@ -1,6 +1,10 @@
 import customtkinter as ctk
 from tkinter import PhotoImage
 from PIL import Image
+from pygame import mixer
+from glob import glob
+from mutagen.mp3 import MP3
+import math
 
 class App(ctk.CTk):
     def __init__(self):
@@ -8,26 +12,42 @@ class App(ctk.CTk):
 
         self._set_appearance_mode("system")
         ctk.set_default_color_theme("dark-blue")
+
+        self.running : bool = True
+        self.current_song_length : int = 1
+
         self.title("BeatCloud v1.0")
         self.iconphoto(False, PhotoImage(file="images\logo_BC.png"))
         self.iconwindow()
+
         self.minsize(640, 480)
-        self.maxsize(640, 480)
+        self.maxsize(1920, 1080)
 
         self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure((0,1), weight=3)
+        self.grid_columnconfigure(0, weight=1)
 
-        # self.playlists_option_menu : ctk.CTkOptionMenu = ctk.CTkOptionMenu(master=self)
-        # self.playlists_option_menu.grid(row=0, column=0, padx=20, pady=(20, 0))
+        #--content_frame
+        self.menu_frame : ctk.CTkFrame = ctk.CTkFrame(master=self, width=self._current_width)
+        self.menu_frame.grid(row=0, column=0, sticky="nsew")
+        self.menu_frame.configure(fg_color="black")
+        #--end
 
-        self.control_frame : ctk.CTkFrame = ctk.CTkFrame(master=self, width=self._current_width, height=120,)
-        self.control_frame.grid(row=1, column=0, columnspan=3)
+        #--music_manip_frame
+        self.control_frame : ctk.CTkFrame = ctk.CTkFrame(master=self, width=self._current_width)
+        self.control_frame.grid(row=1, column=0, sticky="ew")
 
+        self.control_frame.grid_rowconfigure(0, weight=1)
+        self.control_frame.grid_columnconfigure((0,1,2,3,4), weight=1)
+        #--end
+
+        #--slider
         self.music_slider : ctk.CTkSlider = ctk.CTkSlider(master=self.control_frame, width=self._current_width - 20, 
                                                         progress_color="#45FF86")
         self.music_slider.set(0)
-        self.music_slider.place(relx=0.5, rely=0.65, anchor=ctk.S)
+        self.music_slider.grid(row=1, column=0, columnspan=5, sticky="ew")
+        #--end
 
+        #--play_pause
         self.play_pause_state : str = "PAUSE"
         self.play_image = ctk.CTkImage(light_image=Image.open("images\\play.png"),
                                 dark_image=Image.open("images\\play.png"),
@@ -38,39 +58,86 @@ class App(ctk.CTk):
         self.play_pause_button : ctk.CTkButton = ctk.CTkButton(master=self.control_frame, 
                                     width=30, height=30, image=self.play_image, text="", 
                                     command=self.play_pause_clicked, fg_color="transparent")
-        self.play_pause_button.place(relx=0.5, rely=0.5, anchor=ctk.S)
+        self.play_pause_button.grid(row=0, column=2, columnspan=1, sticky="ew")
+        #--end
 
+        #--next_song
         self.next_image = ctk.CTkImage(light_image=Image.open("images\\next.png"),
                                   dark_image=Image.open("images\\next.png"),
                                   size=(20, 20))
+
         self.next_button : ctk.CTkButton = ctk.CTkButton(master=self.control_frame, 
                                     width=25, height=25, image=self.next_image, text="",
                                     fg_color="transparent")
-        self.next_button.place(relx=0.6, rely=0.5, anchor=ctk.S)
-    
+        self.next_button.grid(row=0, column=3, columnspan=1, sticky="ew")
+        #--end
+
+        #--previous_song
         self.previous_image = ctk.CTkImage(light_image=Image.open("images\\previous.png"),
                                   dark_image=Image.open("images\\previous.png"),
                                   size=(20, 20))
         self.previous_button : ctk.CTkButton = ctk.CTkButton(master=self.control_frame, 
                                     width=25, height=25, image=self.previous_image, text="",
                                     fg_color="transparent")
-        self.previous_button.place(relx=0.4, rely=0.5, anchor=ctk.S)
+        self.previous_button.grid(row=0, column=1, columnspan=1, sticky="ew")
+        #--end
 
+        #--left_time_label
         self.music_start_label : ctk.CTkLabel = ctk.CTkLabel(master=self.control_frame, text="0:00")
-        self.music_start_label.place(relx=0.05, rely=0.92, anchor=ctk.S)
+        self.music_start_label.grid(row=2, column=0, columnspan=1, sticky="ew")
+        #--end
 
+        #--right_time_label
         self.music_end_label : ctk.CTkLabel = ctk.CTkLabel(master=self.control_frame, text="0:00")
-        self.music_end_label.place(relx=0.95, rely=0.92, anchor=ctk.S)
+        self.music_end_label.grid(row=2, column=4, columnspan=1, sticky="ew")
+        #--end
         
+    def load_music(self, file : str):
+            mixer.init()
+            mixer.music.load(file)
+            
+            song_length_num = MP3(file).info.length
+            song_lenght_str = str(math.floor(song_length_num / 60)) + ":" + str(math.floor(song_length_num % 60))
+
+            self.music_end_label.configure(text=song_lenght_str)
+            self.current_song_length = song_length_num
+
 
     def play_pause_clicked(self):
         if self.play_pause_state == "PAUSE":
             self.play_pause_button.configure(image=self.pause_image)
             self.play_pause_state = "PLAY"
+
+            if mixer.music.get_pos() == -1:
+                mixer.music.play()
+            else:
+                mixer.music.unpause()
+
         else:
             self.play_pause_button.configure(image=self.play_image)
-            self.play_pause_state = "PAUSE"
-        
+            self.play_pause_state = "PAUSE"        
+            mixer.music.pause()    
+
+    def close(self):
+        self.running = False
+
+    def update(self):
+        super().update()
+
+        song_time = math.floor(mixer.music.get_pos() / 1000) 
+        if song_time > 0:                   
+            self.music_slider.set(song_time / self.current_song_length)
+            self.music_start_label.configure(text="{0:.2f}".format(song_time / 100).replace('.',':'))
+
+
+
 if __name__ == "__main__":
     app = App()
-    app.mainloop()
+
+    songs = glob("music\*.mp3")
+
+    app.load_music(songs[0])
+
+    while app.running:
+        app.protocol("WM_DELETE_WINDOW", app.close)
+        app.update()
